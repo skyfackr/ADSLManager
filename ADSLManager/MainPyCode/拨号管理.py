@@ -217,6 +217,9 @@ class cmdUI(object):
             def new(cls,msg:str=None):
                 return cls(cls.UserErrorFlag(msg))
 
+    def __init__(self):
+        self.nowConfigFile=None
+
 
     def clear(self):
         os.system('cls')
@@ -261,6 +264,7 @@ class cmdUI(object):
         except Exception as e:
             raise self.errors.SystemInteralError(e)
         print('\n加载成功')
+        self.nowConfigFile=dir
         time.sleep(2000)
         self.menuAfterLoad()
 
@@ -326,17 +330,34 @@ class cmdUI(object):
         if line_char==None or line_char=='':
             return origin_str
         if not len(line_char)==1:
-            raise self.errors.SystemInteralError.new('the attribute line_char can only accept one char')
+            raise cls.errors.SystemInteralError.new('the attribute line_char can only accept one char')
         lineList=origin_str.splitlines(False)
         lineNum=-1
         for thisline in lineList:
             lineNum=max(lineNum,len(thisline))
-        return line_char*lineNum+'\n'+origin_str+'\n'+line_char*lineNum
+        return line_char*lineNum+'\n'+origin_str+'\n'+line_char*lineNum+'\n'
 
 
     def menuAfterLoad(self):
         self.clear()
-        print('''
+        print(self.UISpiltLineFormat('''
         加载文件信息：
-        文件名：{} 存档版本号：{} 总文件数：{}
-        ''')
+        文件名：{} 存档版本号：就没更新过有个锤子用 总文件数：{}
+        '''.format(self.nowConfigFile,len(ADSLObject))))
+        print('按下一个按钮执行操作')
+        liststr=None
+        for now in ADSLObject:
+            liststr+=now.getName()+'\n'
+        print(self.UISpiltLineFormat('''
+
+        {}
+        
+        0.断开连接
+        1-x.启动对应链接
+        U.查询当前状态
+        X.退出程序
+        S.保存当前配置文件
+        A.添加一个链接配置
+        D.删除一个连接配置
+        '''.format(self.UISpiltLineFormat(liststr or '没有找到啥链接。请添加几个','#')),'*'))
+        nowkey=self.waitPress()
