@@ -24,8 +24,12 @@ encPw=xxxxxx
 ;加密的密码
 hash=xxx
 '''
+class ADSLManagerBaseDIYException(Exception):
+    pass
+
+
 class ADSLClass(object):
-    class ADSLErrors(Exception):
+    class ADSLErrors(ADSLManagerBaseDIYException):
         pass
     class PasswordVerifyFailedException(ADSLErrors):
         pass
@@ -104,6 +108,10 @@ class ADSLClass(object):
         return os.system('rasdial {} /disconnect'.format(self.getName()))
 
     @classmethod
+    def status(self):
+        return os.system('rasdial')
+
+    @classmethod
     def save(cls,save_list:list,save_dir):
         if not os.path.isfile(save_dir):
             raise AttributeErrorException
@@ -174,18 +182,16 @@ logger=logging.getLogger()
 
 class cmdUI(object):
     class errors(object):
-        class ADSLManagerBaseErrors(Exception):
+        class ADSLManagerBaseErrors(ADSLManagerBaseDIYException):
             pass
         class SystemInteralError(ADSLManagerBaseErrors):
             def __init__(self,e:Exception):
                 id=str(uuid.uuid1())
                 logger.error('Interal Errors Found UUID:{}'.format(id),exc_info=e)
-                print('''
-                ------------------------------------
+                print(cmdUI.UISpiltLineFormat('''
                 出现内部错误，请根据UUID以及日志查错
                 UUID:{}
-                ------------------------------------
-                '''.format(id))
+                '''.format(id)))
                 return
 
             class SystemInteralErrorFlag(ADSLManagerBaseErrors):
@@ -194,6 +200,22 @@ class cmdUI(object):
             @classmethod
             def new(cls,msg:str=None):
                 return cls(cls.SystemInteralErrorFlag(msg))
+        class UserError(ADSLManagerBaseErrors):
+            def __init__(self,e:Exception):
+                id=str(uuid.uuid1())
+                logger.error('User Caused Errors Found UUID:{}'.format(id),exc_info=e)
+                print(cmdUI.UISpiltLineFormat('''
+                用户输入信息有误，请根据UUID以及日志查错
+                UUID:{}
+                错误简报：{}
+                '''.format(id,repr(e))))
+                return
+            class UserErrorFlag(ADSLManagerBaseErrors):
+                pass
+
+            @classmethod
+            def new(cls,msg:str=None):
+                return cls(cls.UserErrorFlag(msg))
 
 
     def clear(self):
@@ -228,14 +250,93 @@ class cmdUI(object):
         return None
 
     def loadConf(self,dir):
-        pass
+        self.clear()
+        print('正在尝试加载：{}'.format(dir))
+        logger.info('try load config:{}'.format(dir))
+        time.sleep(1000)
+        try:
+            ADSLObject+=ADSLClass.patchLoad(dir)
+        except ADSLClass.ADSLErrors as e:
+            raise self.errors.UserError(e)
+        except Exception as e:
+            raise self.errors.SystemInteralError(e)
+        print('\n加载成功')
+        time.sleep(2000)
+        self.menuAfterLoad()
+
+
+    def createConf(self):
+        ans_config=configparser.ConfigParser()
+        ans_config['ADSLManager']={
+            'version':'1.0.0',
+            'config_sum':0}
+        with open(DEFAULT_CONFIG_DIR,'w+') as f:
+            ans_config.write(f)
+            logger.info('create default config')
+            print('创建初始文件成功')
+        return
 
     def mainMenu(self):
         self.clear()
         if os.path.isfile(DEFAULT_CONFIG_DIR):
             if os.path.exists(DEFAULT_CONFIG_DIR):
+                logger.info('found one exist default data')
                 print('''发现一个配置文件。是否需要加载？
                 文件路径:{}
                 按y开始加载'''.format(os.path.abspath(DEFAULT_CONFIG_DIR)))
                 key=self.waitPress()
-                
+                if key==self.getKeyCode('c') or key==self.getKeyCode('C'):
+                    self.loadConf(DEFAULT_CONFIG_DIR)
+                    return
+        self.clear()
+        print('''
+        1.选择配置文件
+        2.查询当前状态
+        3.创建新的配置文件
+        4.退出
+        ''')
+        while True:
+            nowkey=self.waitPress()
+            if nowkey==self.getKeyCode('1'):
+                self.clear()
+                print('请输入路径：')
+                input(input_dir)
+                if not (os.path.isfile(input_dir) and os.path.exists(input_dir)):
+                    print('没有找到该文件，请重试')
+                    continue
+                self.loadConf(input_dir)
+                return
+            if nowkey==self.getKeyCode('2'):
+                ADSLClass.status()
+                continue
+            if nowkey==self.getKeyCode('4'):
+                self.clear()
+                print('感谢使用')
+                logger.info('exit by user')
+                exit(0)
+            if nowkey==self.getKeyCode('3'):
+                try:
+                    self.createConf()
+                except Exception as e:
+                    raise self.errors.SystemInteralError(e)
+                continue
+    
+    @classmethod
+    def UISpiltLineFormat(cls,origin_str:str,line_char:str='-'):
+        if line_char==None or line_char=='':
+            return origin_str
+        if not len(line_char)==1:
+            raise self.errors.SystemInteralError.new('the attribute line_char can only accept one char')
+        lineList=origin_str.splitlines(False)
+        lineNum=-1
+        for thisline in lineList:
+            lineNum=max(lineNum,len(thisline))
+        return line_char*lineNum+'\n'+origin_str+'\n'+line_char*lineNum
+
+
+    def menuAfterLoad(self):
+        self.clear()
+        print('''
+        加载文件信息：
+        文件名：{} 存档版本号：{} 总文件数：{}
+        ''')
