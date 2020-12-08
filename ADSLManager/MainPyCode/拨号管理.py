@@ -4,7 +4,7 @@ def DONOTIMPORT():
     raise ImportError
 __import__=DONOTIMPORT()
 DEFAULT_CONFIG_DIR='./ADSLManager.ini'
-import os,time,base64,configparser
+import os,time,base64,configparser,string,logging,sys,uuid
 from pynput import *
 from Cryptodome.Cipher import *
 from Cryptodome.Hash import *
@@ -36,7 +36,7 @@ class ADSLClass(object):
     class ConfigInvaildSchemaException(ADSLErrors):
         pass
 
-    def __init__(self,name:string=None,account:string=None,password:string=None,order:string=None,config:string=None):
+    def __init__(self,name:str=None,account:str=None,password:str=None,order:str=None,config:str=None):
         if config!=None:
             self.load(config)
             return
@@ -49,7 +49,7 @@ class ADSLClass(object):
         self.setPassword(password,order)
         #self.errors=Errors()
 
-    def setPassword(self,password:string,order:string):
+    def setPassword(self,password:str,order:str):
         self.setHash(password)
         AESsk=SHA256.new(order.encode())[:31]
         password=password.encode()
@@ -74,17 +74,17 @@ class ADSLClass(object):
     def getHash(self):
         return self.accountHash
     
-    def calHash(self,originPw:string):
-        return SHA256.new(string({
+    def calHash(self,originPw:str):
+        return SHA256.new(str({
             'name':self.getName(),
             'account':self.getAccount(),
             'password':originPw}).encode()).hexdigest()
 
-    def setHash(self,originPw:string):
+    def setHash(self,originPw:str):
         self.accountHash=self.calHash(originPw)
         return
 
-    def getPassword(self,order:string):
+    def getPassword(self,order:str):
         AESsk=SHA256.new(order.encode())[:31]
         try:
             ansPw=AES.new(AESsk).decrypt(base64.b64decode(self.encPw))
@@ -96,7 +96,7 @@ class ADSLClass(object):
             raise PasswordVerifyFailedException
         return ansPw
 
-    def callInternet(self,order:string):
+    def callInternet(self,order:str):
         #pw=self.getPassword(order)
         return os.system('rasdial {} {} {}'.format(self.getName(),self.getAccount(),self.getPassword(order)))
 
@@ -168,10 +168,34 @@ if not __name__=='__main__':
     exit(1)
 
 
-global ADSLObject
+global ADSLObject,logger
 ADSLObject=[]
+logger=logging.getLogger()
 
 class cmdUI(object):
+    class errors(object):
+        class ADSLManagerBaseErrors(Exception):
+            pass
+        class SystemInteralError(ADSLManagerBaseErrors):
+            def __init__(self,e:Exception):
+                id=str(uuid.uuid1())
+                logger.error('Interal Errors Found UUID:{}'.format(id),exc_info=e)
+                print('''
+                ------------------------------------
+                出现内部错误，请根据UUID以及日志查错
+                UUID:{}
+                ------------------------------------
+                '''.format(id))
+                return
+
+            class SystemInteralErrorFlag(ADSLManagerBaseErrors):
+                pass
+
+            @classmethod
+            def new(cls,msg:str=None):
+                return cls(cls.SystemInteralErrorFlag(msg))
+
+
     def clear(self):
         os.system('cls')
 
@@ -184,6 +208,13 @@ class cmdUI(object):
         with keyboard.Listener(on_press=onPress,on_release=onFin) as listener:
             listener.join()
         return key
+
+    def getKeyCode(self,c:str):
+        if c==None:
+            return None
+        if type(c)!=str or len(c)!=1:
+            raise self.errors.SystemInteralError.new('this func can only accept ONE CHAR')
+        return keyboard.KeyCode.from_char(c)
 
     def index(self):
         self.clear()
@@ -200,10 +231,11 @@ class cmdUI(object):
         pass
 
     def mainMenu(self):
+        self.clear()
         if os.path.isfile(DEFAULT_CONFIG_DIR):
             if os.path.exists(DEFAULT_CONFIG_DIR):
                 print('''发现一个配置文件。是否需要加载？
                 文件路径:{}
                 按y开始加载'''.format(os.path.abspath(DEFAULT_CONFIG_DIR)))
                 key=self.waitPress()
-
+                
