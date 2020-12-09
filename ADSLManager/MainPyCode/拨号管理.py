@@ -303,8 +303,8 @@ class cmdUI(object):
             nowkey=self.waitPress()
             if nowkey==self.getKeyCode('1'):
                 self.clear()
-                print('请输入路径：')
-                input(input_dir)
+                #print()
+                input_dir=input('请输入路径：')
                 if not (os.path.isfile(input_dir) and os.path.exists(input_dir)):
                     print('没有找到该文件，请重试')
                     continue
@@ -337,6 +337,23 @@ class cmdUI(object):
             lineNum=max(lineNum,len(thisline))
         return line_char*lineNum+'\n'+origin_str+'\n'+line_char*lineNum+'\n'
 
+    def waitQualifiedPress(self,wait_key:str,list):
+        if type(wait_key)==str:
+            if len(wait_key)!=1:
+                raise self.errors.SystemInteralError.new('this func can only accept ONE CHAR or a list made up of them')
+            wait_key=[wait_key]
+        elif type(wait_key)==list:
+            for nowkey in wait_key:
+                if type(nowkey)!=str or len(wait_key)!=1:
+                    raise self.errors.SystemInteralError.new('this func can only accept ONE CHAR or a list made up of them')
+        else:
+            raise self.errors.SystemInteralError.new('this func can only accept ONE CHAR or a list made up of them')
+        for nowkeyindex in range(len(wait_key)):
+            wait_key[nowkeyindex]=self.getKeyCode(wait_key[nowkeyindex])
+        while True:
+            nowkey=self.waitPress()
+            if nowkey in wait_key:
+                return key.char
 
     def menuAfterLoad(self):
         self.clear()
@@ -346,18 +363,62 @@ class cmdUI(object):
         '''.format(self.nowConfigFile,len(ADSLObject))))
         print('按下一个按钮执行操作')
         liststr=None
-        for now in ADSLObject:
-            liststr+=now.getName()+'\n'
+        for index,now in enumerate(ADSLObject):
+            liststr+='{}.{}\n'.format(str(index+1),now.getName())
         print(self.UISpiltLineFormat('''
 
         {}
         
         0.断开连接
-        1-x.启动对应链接
+        1.启动链接选择界面
         U.查询当前状态
         X.退出程序
         S.保存当前配置文件
         A.添加一个链接配置
         D.删除一个连接配置
         '''.format(self.UISpiltLineFormat(liststr or '没有找到啥链接。请添加几个','#')),'*'))
-        nowkey=self.waitPress()
+        while True:
+            print('\n请按下你需要的操作的对应按键\n')
+            nowkey=self.waitQualifiedPress(['0','1','u','U','x','X','s','S','a','A','d','D'])
+            if nowkey=='0':
+                if liststr==None:
+                    print('\n别搞事，傻逼，给爷从头选操作')
+                    continue
+                index=input('请输入你想咔掉的链接编号：')
+                if not (index>=1 and index<=len(ADSLObject)+1):
+                    print('\n别搞事，傻逼，给爷从头选操作')
+                    continue
+                self.disconnecting(index)
+                return
+            if nowkey=='1':
+                if liststr==None:
+                    print('\n别搞事，傻逼，给爷从头选操作')
+                    continue
+                index=input('请输入你想用的链接编号：')
+                if not (index>=1 and index<=len(ADSLObject)+1):
+                    print('\n别搞事，傻逼，给爷从头选操作')
+                    continue
+                self.connecting(index)
+                return
+            if nowkey=='U' or nowkey=='u':
+                print('n')
+                ADSLClass.status()
+                continue
+            if nowkey=='X' or nowkey=='x':
+                print('感谢使用')
+                exit(0)
+            if nowkey=='S' or nowkey=='s':
+                print('正在尝试保存')
+                logger.info('try saving file at {}'.format(DEFAULT_CONFIG_DIR))
+                try:
+                    ADSLClass.save(ADSLObject,DEFAULT_CONFIG_DIR)
+                except Exception as e:
+                    pass
+
+
+
+    def connecting(self,config_index):
+        pass
+
+    def disconnecting(self,config_index):
+        pass
