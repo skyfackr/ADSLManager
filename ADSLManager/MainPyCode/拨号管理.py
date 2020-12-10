@@ -438,11 +438,34 @@ class cmdUI(object):
         print(self.UISpiltLineFormat('''
         链接名称：{}
         账号：{}
-        '''.format(nnowConf.getName(),nowConf)))
+        '''.format(nnowConf.getName(),nowConf.getAccount())))
         order=input('请输入口令:')
+        try:
+            nowConf.callInternet(order)
+        except ADSLClass.PasswordVerifyFailedException as e:
+            logger.warn('password verify failed',exc_info=e)
+            self.errors.UserError.new('密码错误')
+            print('按任意键返回上一级菜单')
+            self.waitPress()
+            return
+        except Exception as e:
+            raise self.errors.SystemInteralError(e)
+        print(self.UISpiltLineFormat('''
+        连接成功！
+        按任意键返回上一级菜单
+        '''))
+        self.waitPress()
+        return
 
     def disconnecting(self,config_index):
-        pass
+        config_index-=1
+        nowConf=ADSLObject[config_index]
+        print(self.UISpiltLineFormat('''
+        即将尝试解除连接
+        链接名称：{}
+        账户：{}
+        '''.format(nowConf.getName(),nowConf.getAccount())))
+        #没写完
 
     def addConfig(self):
         pass
