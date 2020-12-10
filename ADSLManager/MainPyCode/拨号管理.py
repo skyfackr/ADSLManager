@@ -389,6 +389,7 @@ class cmdUI(object):
                     print('\n别搞事，傻逼，给爷从头选操作')
                     continue
                 self.disconnecting(index)
+                self.menuAfterLoad()
                 return
             if nowkey=='1':
                 if liststr==None:
@@ -399,6 +400,7 @@ class cmdUI(object):
                     print('\n别搞事，傻逼，给爷从头选操作')
                     continue
                 self.connecting(index)
+                self.menuAfterLoad()
                 return
             if nowkey=='U' or nowkey=='u':
                 print('n')
@@ -413,12 +415,37 @@ class cmdUI(object):
                 try:
                     ADSLClass.save(ADSLObject,DEFAULT_CONFIG_DIR)
                 except Exception as e:
-                    pass
+                    print('保存失败')
+                    raise self.errors.SystemInteralError(e)
+                print(self.UISpiltLineFormat('保存成功\n保存位置：{}'.format(os.path.abspath(DEFAULT_CONFIG_DIR))))
+                continue
+            if nowkey=='a'or nowkey=='A':
+                self.addConfig()
+                self.menuAfterLoad()
+                return
+            if nowkey=='d' or nowkey=='D':
+                self.delConfig()
+                self.menuAfterLoad()
+                return
+        return
 
 
 
     def connecting(self,config_index):
-        pass
+        config_index-=1
+        nowConf=ADSLObject[config_index]
+        self.clear()
+        print(self.UISpiltLineFormat('''
+        链接名称：{}
+        账号：{}
+        '''.format(nnowConf.getName(),nowConf)))
+        order=input('请输入口令:')
 
     def disconnecting(self,config_index):
+        pass
+
+    def addConfig(self):
+        pass
+
+    def delConfig(self):
         pass
