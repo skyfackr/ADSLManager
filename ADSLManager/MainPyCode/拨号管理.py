@@ -27,7 +27,9 @@ hash=xxx
 '''
 class ADSLManagerBaseDIYException(Exception):
     pass
-
+def callCmd(cmd:str):
+    print(os.popen(cmd).read())
+    return
 
 class ADSLClass(object):
     class ADSLErrors(ADSLManagerBaseDIYException):
@@ -106,14 +108,14 @@ class ADSLClass(object):
 
     def callInternet(self,order:str):
         #pw=self.getPassword(order)
-        return os.system('rasdial {} {} {}'.format(self.getName(),self.getAccount(),self.getPassword(order)))
+        return callCmd('rasdial {} {} {}'.format(self.getName(),self.getAccount(),self.getPassword(order)))
 
     def disconnect(self):
-        return os.system('rasdial {} /disconnect'.format(self.getName()))
+        return callCmd('rasdial {} /disconnect'.format(self.getName()))
 
     @classmethod
     def status(self):
-        return os.system('rasdial')
+        return callCmd('rasdial')
 
     @classmethod
     def save(cls,save_list:list,save_dir):
@@ -163,7 +165,7 @@ class ADSLClass(object):
             loaded=[]
             config['total']={}
             config['total']['ver']=config_data.get('ADSLManager','version')
-            config['total']['len']=config_data.get('ADSLManager','config_sum')
+            config['total']['len']=int(config_data.get('ADSLManager','config_sum'))
             for i in range(config['total']['len']):
                 preLoadSection=config['ADSLConfig{}'.format(i+1)]
                 load_data={
@@ -179,10 +181,14 @@ class ADSLClass(object):
 
 global ADSLObject,logger
 ADSLObject=[]
+logging.basicConfig(level=logging.DEBUG)
 logger=logging.getLogger()
+loghandle=logging.NullHandler(level=logging.DEBUG)
+logger.addHandler(loghandle)
 
 class cmdUI(object):
     #class errors(object):
+    global ADSLObject
     class ADSLManagerBaseErrors(ADSLManagerBaseDIYException):
         pass
     class SystemInteralError(ADSLManagerBaseErrors):
@@ -224,15 +230,22 @@ class cmdUI(object):
 
     def clear(self):
         os.system('cls')
+        logger.debug('screen cleared')
 
     def waitPress(self):
+        global key
         key=None
         def onPress(nowkey):
+            #print('/b')
+            logger.debug('key {} down'.format(str(nowkey)))
+            global key
             key=nowkey
-        def onFin(*args):
+        def onFin(nowkey):
+            logger.debug('key {} on'.format(str(nowkey)))
             return False
         with keyboard.Listener(on_press=onPress,on_release=onFin) as listener:
             listener.join()
+        logger.debug('{} at line {} return key {}'.format(str(sys._getframe().f_code.co_name),str(sys._getframe().f_lineno),str(key)))
         return key
 
     def getKeyCode(self,c:str):
@@ -257,16 +270,16 @@ class cmdUI(object):
         self.clear()
         print('正在尝试加载：{}'.format(dir))
         logger.info('try load config:{}'.format(dir))
-        time.sleep(1000)
+        time.sleep(1)
         try:
-            ADSLObject+=ADSLClass.patchLoad(dir)
+            ADSLObject=ADSLClass.patchLoad(dir)
         except ADSLClass.ADSLErrors as e:
             raise self.UserError(e)
         except Exception as e:
             raise self.SystemInteralError(e)
         print('\n加载成功')
         self.nowConfigFile=dir
-        time.sleep(2000)
+        time.sleep(2)
         self.menuAfterLoad()
 
 
@@ -286,11 +299,12 @@ class cmdUI(object):
         if os.path.isfile(DEFAULT_CONFIG_DIR):
             if os.path.exists(DEFAULT_CONFIG_DIR):
                 logger.info('found one exist default data')
-                print('''发现一个配置文件。是否需要加载？
+                print('''
+                发现一个配置文件。是否需要加载？
                 文件路径:{}
                 按y开始加载'''.format(os.path.abspath(DEFAULT_CONFIG_DIR)))
                 key=self.waitPress()
-                if key==self.getKeyCode('c') or key==self.getKeyCode('C'):
+                if key==self.getKeyCode('y') or key==self.getKeyCode('Y'):
                     self.loadConf(DEFAULT_CONFIG_DIR)
                     return
         self.clear()
@@ -302,6 +316,7 @@ class cmdUI(object):
         ''')
         while True:
             nowkey=self.waitPress()
+            logger.debug('{} at line {} got key {}'.format(str(sys._getframe().f_code.co_name),str(sys._getframe().f_lineno),str(nowkey)))
             if nowkey==self.getKeyCode('1'):
                 self.clear()
                 #print()
@@ -324,7 +339,8 @@ class cmdUI(object):
                     self.createConf()
                 except Exception as e:
                     raise self.SystemInteralError(e)
-                continue
+                self.loadConf(DEFAULT_CONFIG_DIR)
+                return
     
     @classmethod
     def UISpiltLineFormat(cls,origin_str:str,line_char:str='-'):
@@ -336,16 +352,17 @@ class cmdUI(object):
         lineNum=-1
         for thisline in lineList:
             lineNum=max(lineNum,len(thisline))
+        logger.debug('linenunm:{} linestr:{}'.format(lineNum,line_char))
         return line_char*lineNum+'\n'+origin_str+'\n'+line_char*lineNum+'\n'
 
-    def waitQualifiedPress(self,wait_key:str,list):
+    def waitQualifiedPress(self,wait_key:[str,list]):
         if type(wait_key)==str:
             if len(wait_key)!=1:
                 raise self.SystemInteralError.new('this func can only accept ONE CHAR or a list made up of them')
             wait_key=[wait_key]
         elif type(wait_key)==list:
             for nowkey in wait_key:
-                if type(nowkey)!=str or len(wait_key)!=1:
+                if type(nowkey)!=str or len(nowkey)!=1:
                     raise self.SystemInteralError.new('this func can only accept ONE CHAR or a list made up of them')
         else:
             raise self.SystemInteralError.new('this func can only accept ONE CHAR or a list made up of them')
@@ -523,4 +540,17 @@ class cmdUI(object):
 
 
 if __name__=='__main__':
-    print(ADSLClass(1,1,1,1),cmdUI())    
+    print(ADSLClass(1,1,1,1),cmdUI())
+    #input()
+    nowInstance=cmdUI()
+    try:
+        nowInstance.index()
+        nowInstance.mainMenu()
+    except ADSLManagerBaseDIYException as e:
+        logger.error('program exit by custom errors',exc_info=e)
+        print('程序异常退出')
+        exit(1)
+    except Exception as e:
+        logger.error('program exit by unknown errors',exc_info=e)
+        print('发生未知错误，请查询日志')
+        exit(255)
