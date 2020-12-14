@@ -503,7 +503,23 @@ class cmdUI(object):
         return
 
     def delConfig(self):
-        pass
+        liststr=''
+        for index,now in enumerate(ADSLObject):
+            liststr+='{}.{}\n'.format(str(index+1),now.getName())
+        print(self.UISpiltLineFormat('''
+        {}
+        请输入你要删除的数字，输入不在范围的数字或者其他奇怪的东西将会
+        返回上一级菜单
+        '''.format(liststr)))
+        num=input()
+        if ((not num.isdigit()) or ( not (int(num)>=1 and int(num)<=len(ADSLObject)))):
+            return
+        logger.info('del object {} by user'.format(ADSLObject[num-1].getName()))
+        del ADSLObject[num-1]
+        print('删除成功，按任意键返回上一级菜单')
+        self.waitPress()
+        return
+
 
 
 if __name__=='__main__':
