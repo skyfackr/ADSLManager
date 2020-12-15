@@ -1,4 +1,5 @@
 #__all__=[]
+DEBUGMODE=True
 def DONOTIMPORT():
     if not __name__=='__main__':
         print('请直接运行此代码而非引用')
@@ -183,12 +184,13 @@ class ADSLClass(object):
         logger.debug('{} at line {} ADSLObject:{}'.format(str(sys._getframe().f_code.co_name),str(sys._getframe().f_lineno),repr(loaded)))
         return loaded
 
-
+raise RuntimeError('没写完')
 global ADSLObject,logger
 ADSLObject=[]
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger=logging.getLogger()
-loghandle=logging.NullHandler(level=logging.DEBUG)
+
+loghandle=logging.StreamHandler()
 logger.addHandler(loghandle)
 
 class cmdUI(object):
