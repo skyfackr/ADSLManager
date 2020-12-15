@@ -10,6 +10,7 @@ from pynput import *
 from Cryptodome.Cipher import *
 from Cryptodome.Hash import *
 from datetime import datetime
+import threading
 '''
 ;example config schema
 [ADSLManager]
@@ -128,7 +129,7 @@ class ADSLClass(object):
         for deal in save_list:
             if type(deal)!=ADSLClass:
                 raise cls.AttributeErrorException
-            ans_config['ADSLManager']['config_sum']+=1
+            ans_config['ADSLManager']['config_sum']=str(int(ans_config['ADSLManager']['config_sum'])+1)
             ans_config['ADSLConfig{}'.format(ans_config['ADSLManager']['config_sum'])]={
                 'name':deal.getName(),
                 'account':deal.getAccount(),
@@ -160,22 +161,26 @@ class ADSLClass(object):
             config_data.read(config_dir)
         except Exception:
             raise cls.ConfigDamagedException
+        loaded=[] 
         try:
             config={}
-            loaded=[]
+            
             config['total']={}
             config['total']['ver']=config_data.get('ADSLManager','version')
             config['total']['len']=int(config_data.get('ADSLManager','config_sum'))
             for i in range(config['total']['len']):
-                preLoadSection=config['ADSLConfig{}'.format(i+1)]
+                preLoadSection=config_data['ADSLConfig{}'.format(i+1)]
                 load_data={
                     'name':preLoadSection['name'],
                     'account':preLoadSection['account'],
                     'encPw':preLoadSection['encPw'],
                     'hash':preLoadSection['hash']}
                 loaded.append(ADSLClass(config=load_data))
+                logger.debug('{} at line {} ADSLObject:{}'.format(str(sys._getframe().f_code.co_name),str(sys._getframe().f_lineno),repr(loaded)))
+            logger.debug('{} at line {} ADSLObject:{}'.format(str(sys._getframe().f_code.co_name),str(sys._getframe().f_lineno),repr(loaded)))
         except Exception:
             raise cls.ConfigInvaildSchemaException
+        logger.debug('{} at line {} ADSLObject:{}'.format(str(sys._getframe().f_code.co_name),str(sys._getframe().f_lineno),repr(loaded)))
         return loaded
 
 
@@ -199,6 +204,7 @@ class cmdUI(object):
             出现内部错误，请根据UUID以及日志查错
             UUID:{}
             '''.format(id)))
+            #sys.exc_clear
             return
 
         class SystemInteralErrorFlag(ADSLManagerBaseDIYException):
@@ -216,6 +222,7 @@ class cmdUI(object):
             UUID:{}
             错误简报：{}
             '''.format(id,repr(e))))
+            #sys.exc_clear
             return
         class UserErrorFlag(ADSLManagerBaseDIYException):
             pass
@@ -245,6 +252,11 @@ class cmdUI(object):
             return False
         with keyboard.Listener(on_press=onPress,on_release=onFin) as listener:
             listener.join()
+            sys.stdin.flush()
+            flushThread=threading.Thread(target=input,daemon=True)
+            flushThread.start()
+            keyboard.Controller().press(key=keyboard.Key.enter)
+            keyboard.Controller().release(key=keyboard.Key.enter)
         logger.debug('{} at line {} return key {}'.format(str(sys._getframe().f_code.co_name),str(sys._getframe().f_lineno),str(key)))
         return key
 
@@ -271,13 +283,17 @@ class cmdUI(object):
         print('正在尝试加载：{}'.format(dir))
         logger.info('try load config:{}'.format(dir))
         time.sleep(1)
+        global ADSLObject
         try:
+            
             ADSLObject=ADSLClass.patchLoad(dir)
+            logger.debug('{} at line {} ADSLObject:{}'.format(str(sys._getframe().f_code.co_name),str(sys._getframe().f_lineno),repr(ADSLObject)))
         except ADSLClass.ADSLErrors as e:
             raise self.UserError(e)
         except Exception as e:
             raise self.SystemInteralError(e)
         print('\n加载成功')
+        logger.debug('{} at line {} ADSLObject:{}'.format(str(sys._getframe().f_code.co_name),str(sys._getframe().f_lineno),repr(ADSLObject)))
         self.nowConfigFile=dir
         time.sleep(2)
         self.menuAfterLoad()
@@ -353,7 +369,7 @@ class cmdUI(object):
         for thisline in lineList:
             lineNum=max(lineNum,len(thisline))
         logger.debug('linenunm:{} linestr:{}'.format(lineNum,line_char))
-        return line_char*lineNum+'\n'+origin_str+'\n'+line_char*lineNum+'\n'
+        return '\n'+line_char*lineNum+'\n'+origin_str+'\n'+line_char*lineNum+'\n'
 
     def waitQualifiedPress(self,wait_key:[str,list]):
         if type(wait_key)==str:
@@ -380,7 +396,7 @@ class cmdUI(object):
         文件名：{} 存档版本号：就没更新过有个锤子用 总文件数：{}
         '''.format(self.nowConfigFile,len(ADSLObject))))
         print('按下一个按钮执行操作')
-        liststr=None
+        liststr=''
         for index,now in enumerate(ADSLObject):
             liststr+='{}.{}\n'.format(str(index+1),now.getName())
         print(self.UISpiltLineFormat('''
@@ -413,7 +429,7 @@ class cmdUI(object):
                 if liststr==None:
                     print('\n别搞事，傻逼，给爷从头选操作')
                     continue
-                index=input('请输入你想用的链接编号：')
+                index=int(input('请输入你想用的链接编号：'))
                 if not (index>=1 and index<=len(ADSLObject)+1):
                     print('\n别搞事，傻逼，给爷从头选操作')
                     continue
@@ -429,13 +445,13 @@ class cmdUI(object):
                 exit(0)
             if nowkey=='S' or nowkey=='s':
                 print('正在尝试保存')
-                logger.info('try saving file at {}'.format(DEFAULT_CONFIG_DIR))
+                logger.info('try saving file at {}'.format(self.nowConfigFile))
                 try:
-                    ADSLClass.save(ADSLObject,DEFAULT_CONFIG_DIR)
+                    ADSLClass.save(ADSLObject,self.nowConfigFile)
                 except Exception as e:
                     print('保存失败')
                     raise self.SystemInteralError(e)
-                print(self.UISpiltLineFormat('保存成功\n保存位置：{}'.format(os.path.abspath(DEFAULT_CONFIG_DIR))))
+                print(self.UISpiltLineFormat('保存成功\n保存位置：{}'.format(os.path.abspath(self.nowConfigFile))))
                 continue
             if nowkey=='a'or nowkey=='A':
                 self.addConfig()
@@ -520,7 +536,7 @@ class cmdUI(object):
         return
 
     def delConfig(self):
-        liststr=''
+        liststr='\n'
         for index,now in enumerate(ADSLObject):
             liststr+='{}.{}\n'.format(str(index+1),now.getName())
         print(self.UISpiltLineFormat('''
@@ -540,7 +556,7 @@ class cmdUI(object):
 
 
 if __name__=='__main__':
-    print(ADSLClass(1,1,1,1),cmdUI())
+    #print(ADSLClass(1,1,1,1),cmdUI())
     #input()
     nowInstance=cmdUI()
     try:
