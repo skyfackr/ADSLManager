@@ -1,4 +1,3 @@
-#__all__=[]
 DEBUGMODE=True
 LOGFILE='./adslmanager.log'
 def DONOTIMPORT():
@@ -9,8 +8,8 @@ __import__=DONOTIMPORT()
 DEFAULT_CONFIG_DIR='./ADSLManager.ini'
 import os,time,base64,configparser,string,logging,sys,uuid
 from pynput import *
-from Cryptodome.Cipher import *
-from Cryptodome.Hash import *
+from Cryptodome.Cipher import AES
+from Cryptodome.Hash import SHA256
 from datetime import datetime
 import threading
 '''
@@ -28,12 +27,16 @@ encPw=xxxxxx
 ;加密的密码
 hash=xxx
 '''
+global ADSLManagerBaseDIYException
 class ADSLManagerBaseDIYException(Exception):
     pass
+
 def callCmd(cmd:str):
     print(os.popen(cmd).read())
     return
 
+
+# noinspection PyUnresolvedReferences
 class ADSLClass(object):
     class ADSLErrors(ADSLManagerBaseDIYException):
         pass
@@ -46,7 +49,7 @@ class ADSLClass(object):
     class ConfigInvaildSchemaException(ADSLErrors):
         pass
 
-    def __init__(self,name:str=None,account:str=None,password:str=None,order:str=None,config:str=None):
+    def __init__(self,name:str=None,account:str=None,password:str=None,order:str=None,config:dict=None):
         if config!=None:
             self.load(config)
             return
@@ -100,7 +103,7 @@ class ADSLClass(object):
     def getPassword(self,order:str):
         AESsk=SHA256.new(order.encode()).hexdigest()[:32].encode()
         try:
-            ansPw=AES.new(AESsk).decrypt(base64.b64decode(self.encPw))
+            ansPw=AES.new(AESsk,AES.MODE_EAX).decrypt(base64.b64decode(self.encPw))
             padCode=ansPw[-1].decode()
             ansPw=ansPw[:len(ansPw)-ord(padCode)].decode()
         except Exception:
@@ -143,7 +146,7 @@ class ADSLClass(object):
 
 
 
-    def load(self,config):
+    def load(self,config:dict):
         nameNeeded=['name','account','encPw','hash']
         for tested in nameNeeded:
             if not tested in config.keys():
@@ -185,7 +188,7 @@ class ADSLClass(object):
         logger.debug('{} at line {} ADSLObject:{}'.format(str(sys._getframe().f_code.co_name),str(sys._getframe().f_lineno),repr(loaded)))
         return loaded
 
-raise RuntimeError('没写完')
+#raise RuntimeError('没写完')
 global ADSLObject,logger
 ADSLObject=[]
 logging.basicConfig(level=logging.INFO)
@@ -247,9 +250,10 @@ class cmdUI(object):
         os.system('cls')
         logger.debug('screen cleared')
 
+    # noinspection PyUnresolvedReferences
     def waitPress(self):
         global key
-        key=None
+        key: [None,keyboard.key]=None
         def onPress(nowkey):
             #print('/b')
             logger.debug('key {} down'.format(str(nowkey)))
@@ -286,6 +290,7 @@ class cmdUI(object):
         self.waitPress()
         return None
 
+    # noinspection PyUnresolvedReferences
     def loadConf(self,dir):
         self.clear()
         print('正在尝试加载：{}'.format(dir))
@@ -318,6 +323,7 @@ class cmdUI(object):
             print('创建初始文件成功')
         return
 
+    # noinspection PyUnresolvedReferences
     def mainMenu(self):
         self.clear()
         if os.path.isfile(DEFAULT_CONFIG_DIR):
@@ -371,7 +377,7 @@ class cmdUI(object):
         if line_char==None or line_char=='':
             return origin_str
         if not len(line_char)==1:
-            raise cls.errors.SystemInteralError.new('the attribute line_char can only accept one char')
+            raise cls.SystemInteralError.new('the attribute line_char can only accept one char')
         lineList=origin_str.splitlines(False)
         lineNum=-1
         for thisline in lineList:
@@ -395,7 +401,7 @@ class cmdUI(object):
         while True:
             nowkey=self.waitPress()
             if nowkey in wait_key:
-                return key.char
+                return nowkey.char
 
     def menuAfterLoad(self):
         self.clear()
@@ -427,7 +433,7 @@ class cmdUI(object):
                     print('\n别搞事，傻逼，给爷从头选操作')
                     continue
                 index=input('请输入你想咔掉的链接编号：')
-                if not (index>=1 and index<=len(ADSLObject)+1):
+                if (not index.isdigit()) and  (not (int(index)>=1 and int(index)<=len(ADSLObject)+1)):
                     print('\n别搞事，傻逼，给爷从头选操作')
                     continue
                 self.disconnecting(index)
@@ -480,12 +486,12 @@ class cmdUI(object):
         print(self.UISpiltLineFormat('''
         链接名称：{}
         账号：{}
-        '''.format(nnowConf.getName(),nowConf.getAccount())))
+        '''.format(nowConf.getName(),nowConf.getAccount())))
         order=input('请输入口令:')
         try:
             nowConf.callInternet(order)
         except ADSLClass.PasswordVerifyFailedException as e:
-            logger.warn('password verify failed',exc_info=e)
+            logger.warning('password verify failed',exc_info=e)
             self.UserError.new('密码错误')
             print('按任意键返回上一级菜单')
             self.waitPress()
@@ -555,6 +561,7 @@ class cmdUI(object):
         num=input()
         if ((not num.isdigit()) or ( not (int(num)>=1 and int(num)<=len(ADSLObject)))):
             return
+        num=int(num)
         logger.info('del object {} by user'.format(ADSLObject[num-1].getName()))
         del ADSLObject[num-1]
         print('删除成功，按任意键返回上一级菜单')
