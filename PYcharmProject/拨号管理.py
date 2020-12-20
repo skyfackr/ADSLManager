@@ -69,7 +69,7 @@ class ADSLClass(object):
         pass
 
     def __init__(self, name: str = None, account: str = None, password: str = None, order: str = None,
-                 config: Union[dict, None] = None):
+                 config: [dict, None] = None):
         if config is not None:
             self.load(config)
             return
@@ -216,15 +216,22 @@ class ADSLClass(object):
 global ADSLObject, logger
 # noinspection PyRedeclaration
 ADSLObject = []
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger()
 logFileStream = open(LOGFILE, 'a')
 loghandle = logging.StreamHandler(logFileStream)
 loghandle.setLevel(logging.INFO)
 loghandle.set_name('adslmanager')
+logFormatter=logging.Formatter(
+    fmt='%(asctime)s [%(filename)s - %(funcName)s - %(lineno)d] %(process)d-%(thread)d-%(threadName)s %(levelname)s:%(message)s',
+    datefmt='%a, %d %b %Y %H:%M:%S'
+)
+loghandle.setFormatter(logFormatter)
 if DEBUGMODE:
     loghandle.setLevel(logging.DEBUG)
     loghandle.set_name('adslmanager_DEBUG')
+for nowh in logger.handlers:
+    logger.removeHandler(nowh)
 logger.addHandler(loghandle)
 
 
@@ -290,7 +297,7 @@ class cmdUI(object):
         :return: 上一个按下的按键，即使焦点不在屏幕也会返回
         """
         # global key
-        key: Union[None, keyboard.Key] = None
+        key: [None, keyboard.Key] = None
 
         def onPress(nowkey):
             # print('/b')
