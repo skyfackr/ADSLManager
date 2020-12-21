@@ -41,6 +41,12 @@ hash=xxx
 global ADSLManagerBaseDIYException
 
 
+def exit(code: int):
+    if DEBUGMODE:
+        input('按回车退出')
+    sys.exit(code)
+
+
 # noinspection PyRedeclaration
 class ADSLManagerBaseDIYException(Exception):
     pass
@@ -222,7 +228,7 @@ logFileStream = open(LOGFILE, 'a')
 loghandle = logging.StreamHandler(logFileStream)
 loghandle.setLevel(logging.INFO)
 loghandle.set_name('adslmanager')
-logFormatter=logging.Formatter(
+logFormatter = logging.Formatter(
     fmt='%(asctime)s [%(filename)s - %(funcName)s - %(lineno)d] %(process)d-%(thread)d-%(threadName)s %(levelname)s:%(message)s',
     datefmt='%a, %d %b %Y %H:%M:%S'
 )
@@ -234,6 +240,21 @@ for nowh in logger.handlers:
     logger.removeHandler(nowh)
 logger.addHandler(loghandle)
 
+class FlushThread(threading.Thread):
+
+    def __init__(self,*args,**kwargs):
+        super().__init__(**kwargs)
+        self.exitFlag=False
+
+    def run(self):
+        inputThread=threading.Thread(target=input,daemon=True)
+        inputThread.start()
+        while not self.exitFlag:
+            pass
+
+    def stop(self):
+        if self.is_alive():
+            self.exitFlag=True
 
 # noinspection PyProtectedMember
 class cmdUI(object):
@@ -298,24 +319,30 @@ class cmdUI(object):
         """
         # global key
         key: [None, keyboard.Key] = None
+        ispressed = False
 
         def onPress(nowkey):
-            # print('/b')
             logger.debug('key {} down'.format(str(nowkey)))
             nonlocal key
             key = nowkey
+            nonlocal ispressed
+            ispressed = True
 
         def onFin(nowkey):
             logger.debug('key {} on'.format(str(nowkey)))
+            if not ispressed:
+                return True
             return False
 
         with keyboard.Listener(on_press=onPress, on_release=onFin) as listener:
             listener.join()
             sys.stdin.flush()
-            flushThread = threading.Thread(target=input, daemon=True)
+            flushThread = FlushThread(target=input, daemon=True)
             flushThread.start()
-            keyboard.Controller().press(key=keyboard.Key.enter)
-            keyboard.Controller().release(key=keyboard.Key.enter)
+            flushThread.stop()
+            print('\b')
+            # keyboard.Controller().press(key=keyboard.Key.enter)
+            # keyboard.Controller().release(key=keyboard.Key.enter)
         logger.debug(
             '{} at line {} return key {}'.format(str(sys._getframe().f_code.co_name), str(sys._getframe().f_lineno),
                                                  str(key)))
