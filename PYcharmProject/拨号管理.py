@@ -41,9 +41,11 @@ hash=xxx
 global ADSLManagerBaseDIYException
 
 
-def exit(code: int):
+def exit(code):
     if DEBUGMODE:
+        logger.debug('exit flag 1')
         input('按回车退出')
+    logger.debug('exit flag 2')
     sys.exit(code)
 
 
@@ -240,21 +242,23 @@ for nowh in logger.handlers:
     logger.removeHandler(nowh)
 logger.addHandler(loghandle)
 
+
 class FlushThread(threading.Thread):
 
-    def __init__(self,*args,**kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(**kwargs)
-        self.exitFlag=False
+        self.exitFlag = False
 
     def run(self):
-        inputThread=threading.Thread(target=input,daemon=True)
+        inputThread = threading.Thread(target=input, daemon=True)
         inputThread.start()
         while not self.exitFlag:
             pass
 
     def stop(self):
         if self.is_alive():
-            self.exitFlag=True
+            self.exitFlag = True
+
 
 # noinspection PyProtectedMember
 class cmdUI(object):
@@ -462,9 +466,19 @@ class cmdUI(object):
             raise cls.SystemInteralError.new('the attribute line_char can only accept one char')
         lineList = origin_str.splitlines(False)
         lineNum = -1
-        for thisline in lineList:
+        for index, thisline in enumerate(lineList):
+            logger.debug('deal line {}:{}'.format(index, thisline))
+            if len(thisline) == 0:
+                logger.debug('skip line {}'.format(index))
+                continue
+            while len(thisline) != 0 and thisline[0] == ' ':
+                lineList[index] = thisline[1:]
+                thisline = lineList[index]
+                logger.debug('cut space at line {}'.format(index))
             lineNum = max(lineNum, len(thisline))
-        logger.debug('linenunm:{} linestr:{}'.format(lineNum, line_char))
+            logger.debug('deal line {} fin.lineNum:{}'.format(index, len(thisline)))
+        logger.debug('linenum:{} linestr:{}'.format(lineNum, line_char))
+        origin_str = '\n'.join(lineList)
         return '\n' + line_char * lineNum + '\n' + origin_str + '\n' + line_char * lineNum + '\n'
 
     def waitQualifiedPress(self, wait_key: [str, list]):
