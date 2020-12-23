@@ -42,9 +42,11 @@ global ADSLManagerBaseDIYException
 
 
 def exit(code):
+    logger.debug('exit flag 0')
     if DEBUGMODE:
         logger.debug('exit flag 1')
-        input('按回车退出')
+        callCmd('pause')
+        logger.debug('exit flag 1.5')
     logger.debug('exit flag 2')
     sys.exit(code)
 
@@ -245,19 +247,24 @@ logger.addHandler(loghandle)
 
 class FlushThread(threading.Thread):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, *args, tname=None,**kwargs):
+        tname=tname or 'FlushThread'
+        super().__init__(name=tname,**kwargs)
         self.exitFlag = False
 
     def run(self):
         inputThread = threading.Thread(target=input, daemon=True)
         inputThread.start()
+        logger.debug('thread run')
         while not self.exitFlag:
             pass
+        print('\b')
+        logger.debug('thread over')
 
     def stop(self):
         if self.is_alive():
             self.exitFlag = True
+            logger.debug('thread stop single sent')
 
 
 # noinspection PyProtectedMember
@@ -338,13 +345,13 @@ class cmdUI(object):
                 return True
             return False
 
-        with keyboard.Listener(on_press=onPress, on_release=onFin) as listener:
+        with keyboard.Listener(on_press=onPress, on_release=onFin,name='keyWatchThread') as listener:
             listener.join()
             sys.stdin.flush()
             flushThread = FlushThread(target=input, daemon=True)
             flushThread.start()
             flushThread.stop()
-            print('\b')
+            flushThread.join()
             # keyboard.Controller().press(key=keyboard.Key.enter)
             # keyboard.Controller().release(key=keyboard.Key.enter)
         logger.debug(
