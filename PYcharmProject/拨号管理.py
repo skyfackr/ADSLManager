@@ -6,6 +6,7 @@ import sys
 import threading
 import time
 import uuid
+import win32console
 
 from Cryptodome.Cipher import AES
 from Cryptodome.Hash import SHA256
@@ -13,6 +14,7 @@ from pynput import *
 
 DEBUGMODE = True
 LOGFILE = './adslmanager.log'
+FLUSHTHREAD_USE_INPUT_FUNC = False
 
 
 def DONOTIMPORT():
@@ -59,6 +61,18 @@ class ADSLManagerBaseDIYException(Exception):
 def callCmd(cmd: str):
     print(os.popen(cmd).read())
     return
+
+
+class StdHandlePoint:
+    def __init__(self):
+        self.hd = win32console.PyConsoleScreenBufferType(win32console.GetStdHandle(win32console.STD_INPUT_HANDLE))
+
+    def flush(self):
+        logger.debug('flush input by win32 api')
+        self.hd.FlushConsoleInputBuffer()
+
+
+stdHandlePoint = StdHandlePoint()
 
 
 # noinspection PyUnresolvedReferences,PyProtectedMember
@@ -134,8 +148,8 @@ class ADSLClass(object):
         AESsk = SHA256.new(order.encode()).hexdigest()[:32].encode()
         try:
             ansPw = AES.new(AESsk, AES.MODE_EAX).decrypt(base64.b64decode(self.encPw))
-            padCode = ansPw[-1].decode()
-            ansPw = ansPw[:len(ansPw) - ord(padCode)].decode()
+            padCode = ansPw[-1]
+            ansPw = ansPw[:len(ansPw) - padCode].decode()
         except Exception:
             raise self.PasswordVerifyFailedException
         if self.getHash() != self.calHash(ansPw):
@@ -247,12 +261,16 @@ logger.addHandler(loghandle)
 
 class FlushThread(threading.Thread):
 
-    def __init__(self, *args, tname=None,**kwargs):
-        tname=tname or 'FlushThread'
-        super().__init__(name=tname,**kwargs)
+    def __init__(self, *args, tname=None, **kwargs):
+        tname = tname or 'FlushThread'
+        super().__init__(name=tname, **kwargs)
         self.exitFlag = False
 
     def run(self):
+        global FLUSHTHREAD_USE_INPUT_FUNC
+        if not FLUSHTHREAD_USE_INPUT_FUNC:
+            logger.debug('flushThread won\'t use input func')
+            return
         inputThread = threading.Thread(target=input, daemon=True)
         inputThread.start()
         logger.debug('thread run')
@@ -345,9 +363,11 @@ class cmdUI(object):
                 return True
             return False
 
-        with keyboard.Listener(on_press=onPress, on_release=onFin,name='keyWatchThread') as listener:
+        with keyboard.Listener(on_press=onPress, on_release=onFin, name='keyWatchThread') as listener:
             listener.join()
             sys.stdin.flush()
+            global stdHandlePoint
+            stdHandlePoint.flush()
             flushThread = FlushThread(target=input, daemon=True)
             flushThread.start()
             flushThread.stop()
@@ -368,12 +388,12 @@ class cmdUI(object):
 
     def index(self):
         self.clear()
-        print('''拨号管理系统
+        print(self.UISpiltLineFormat('''拨号管理系统
         powered by skyfackr
         licensed in GPLv3
 
         点按任意键继续
-        ''')
+        '''))
         self.waitPress()
         return None
 
@@ -420,21 +440,21 @@ class cmdUI(object):
         if os.path.isfile(DEFAULT_CONFIG_DIR):
             if os.path.exists(DEFAULT_CONFIG_DIR):
                 logger.info('found one exist default data')
-                print('''
+                print(self.UISpiltLineFormat('''
                 发现一个配置文件。是否需要加载？
                 文件路径:{}
-                按y开始加载'''.format(os.path.abspath(DEFAULT_CONFIG_DIR)))
+                按y开始加载'''.format(os.path.abspath(DEFAULT_CONFIG_DIR))))
                 key = self.waitPress()
                 if key == self.getKeyCode('y') or key == self.getKeyCode('Y'):
                     self.loadConf(DEFAULT_CONFIG_DIR)
                     return
         self.clear()
-        print('''
+        print(self.UISpiltLineFormat('''
         1.选择配置文件
         2.查询当前状态
         3.创建新的配置文件
         4.退出
-        ''')
+        '''))
         while True:
             nowkey = self.waitPress()
             logger.debug(
@@ -608,6 +628,7 @@ class cmdUI(object):
         return
 
     def disconnecting(self, config_index):
+        config_index=int(config_index)
         config_index -= 1
         nowConf = ADSLObject[config_index]
         print(self.UISpiltLineFormat('''
@@ -659,6 +680,7 @@ class cmdUI(object):
         返回上一级菜单
         '''.format(liststr)))
         num = input()
+        logger.debug('user try del object num {}'.format(num))
         if (not num.isdigit()) or (not (1 <= int(num) <= len(ADSLObject))):
             return
         num = int(num)
