@@ -13,7 +13,7 @@ from Cryptodome.Hash import SHA256
 from pynput import *
 
 DEBUGMODE = True
-LOGFILE = './adslmanager.log'
+LOGFILE = './adslmanagerlog.txt'
 FLUSHTHREAD_USE_INPUT_FUNC = False
 
 
@@ -116,8 +116,9 @@ class ADSLClass(object):
         padCode = len(password) % AES.block_size
         if padCode == 0:
             padCode = AES.block_size
-        password += (chr(padCode) * padCode).encode()
-        ansPw = base64.b64encode(AES.new(AESsk, AES.MODE_EAX).encrypt(password))
+        for i in range(padCode):
+            password += chr(padCode).encode()
+        ansPw = base64.b64encode(AES.new(AESsk, AES.MODE_EAX).encrypt(password)).decode()
         self.encPw = ansPw
         return
 
@@ -147,12 +148,13 @@ class ADSLClass(object):
     def getPassword(self, order: str):
         AESsk = SHA256.new(order.encode()).hexdigest()[:32].encode()
         try:
-            ansPw = AES.new(AESsk, AES.MODE_EAX).decrypt(base64.b64decode(self.encPw))
+            ansPw = AES.new(AESsk, AES.MODE_EAX).decrypt(base64.b64decode(self.encPw.encode()))
             padCode = ansPw[-1]
             ansPw = ansPw[:len(ansPw) - padCode].decode()
         except Exception:
             raise self.PasswordVerifyFailedException
         if self.getHash() != self.calHash(ansPw):
+            logger.debug('calhash:{} requirehash:{} ansPw:{}'.format(self.calHash(ansPw), self.getHash(), ansPw))
             raise self.PasswordVerifyFailedException
         return ansPw
 
@@ -242,7 +244,7 @@ global ADSLObject, logger
 ADSLObject = []
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger()
-logFileStream = open(LOGFILE, 'a')
+logFileStream = open(LOGFILE, 'a',encoding='utf8')
 loghandle = logging.StreamHandler(logFileStream)
 loghandle.setLevel(logging.INFO)
 loghandle.set_name('adslmanager')
@@ -628,7 +630,7 @@ class cmdUI(object):
         return
 
     def disconnecting(self, config_index):
-        config_index=int(config_index)
+        config_index = int(config_index)
         config_index -= 1
         nowConf = ADSLObject[config_index]
         print(self.UISpiltLineFormat('''
