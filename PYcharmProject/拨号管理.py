@@ -7,12 +7,12 @@ import threading
 import time
 import uuid
 import win32console
-
 from Cryptodome.Cipher import AES
 from Cryptodome.Hash import SHA256
+from Cryptodome.Util.Padding import pad, unpad
 from pynput import *
 
-DEBUGMODE = True
+DEBUGMODE = False
 LOGFILE = './adslmanagerlog.txt'
 FLUSHTHREAD_USE_INPUT_FUNC = False
 
@@ -111,14 +111,17 @@ class ADSLClass(object):
     def setPassword(self, password: str, order: str):
         self.setHash(password)
         AESsk = SHA256.new(order.encode()).hexdigest()[:32].encode()
+        logger.debug('aessk:{}'.format(AESsk))
         password = password.encode()
-        from Cryptodome.Cipher import AES
+        '''
+        替换为sdk的pad函数
         padCode = len(password) % AES.block_size
         if padCode == 0:
             padCode = AES.block_size
         for i in range(padCode):
-            password += chr(padCode).encode()
-        ansPw = base64.b64encode(AES.new(AESsk, AES.MODE_EAX).encrypt(password)).decode()
+            password += chr(padCode).encode()'''
+        password = pad(password, AES.block_size)
+        ansPw = base64.b64encode(AES.new(AESsk, AES.MODE_ECB).encrypt(password)).decode()
         self.encPw = ansPw
         return
 
@@ -148,9 +151,12 @@ class ADSLClass(object):
     def getPassword(self, order: str):
         AESsk = SHA256.new(order.encode()).hexdigest()[:32].encode()
         try:
-            ansPw = AES.new(AESsk, AES.MODE_EAX).decrypt(base64.b64decode(self.encPw.encode()))
+            ansPw = AES.new(AESsk, AES.MODE_ECB).decrypt(base64.b64decode(self.encPw.encode()))
+            '''
+            替换为sdk的unpad函数
             padCode = ansPw[-1]
-            ansPw = ansPw[:len(ansPw) - padCode].decode()
+            ansPw = ansPw[:len(ansPw) - padCode].decode()'''
+            ansPw = unpad(ansPw, AES.block_size).decode()
         except Exception:
             raise self.PasswordVerifyFailedException
         if self.getHash() != self.calHash(ansPw):
@@ -244,7 +250,7 @@ global ADSLObject, logger
 ADSLObject = []
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger()
-logFileStream = open(LOGFILE, 'a',encoding='utf8')
+logFileStream = open(LOGFILE, 'a', encoding='utf8')
 loghandle = logging.StreamHandler(logFileStream)
 loghandle.setLevel(logging.INFO)
 loghandle.set_name('adslmanager')

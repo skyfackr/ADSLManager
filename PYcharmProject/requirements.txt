@@ -1,0 +1,6 @@
+configparser~=5.0.1
+pynput==1.6.8
+pywin32
+pycryptodomex
+pip
+setuptools
